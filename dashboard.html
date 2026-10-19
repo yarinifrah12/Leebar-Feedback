@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>דשבורד משוב LEE BAR</title>
+<link rel="icon" href="assets/leebar.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Secular+One&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}
+  html,body{height:auto}
+  [hidden]{display:none!important}
+  .loading{padding:40px 0;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="pinGate" dir="rtl" lang="he">
+  <div class="pin-box">
+    <div class="brand" id="pBrand"></div>
+    <h2 style="font-size:24px">כניסה לדשבורד המשוב</h2>
+    <div class="d-meta">הזיני את הקוד שלך. מנכ"ל רואה את כל התחנות, מנהל תחנה רואה את התחנה שלו.</div>
+    <div class="pin-dots" id="pinDots"></div>
+    <div class="pin-err" id="pinErr" role="alert"></div>
+    <div class="pin-pad" id="pinPad"></div>
+  </div>
+</div>
+
+<div id="dash" dir="rtl" lang="he" hidden>
+  <header class="d-head">
+    <div style="display:flex;align-items:center;gap:14px;min-width:0">
+      <div class="brand" id="dBrand"></div>
+      <div style="min-width:0">
+        <h1 class="d-title" id="dTitle">משוב חדר האוכל</h1>
+        <div class="d-meta" id="dMeta">טוען נתונים…</div>
+      </div>
+    </div>
+    <div class="d-actions">
+      <select class="st-sel" id="stSel" aria-label="תחנה" hidden></select>
+      <div class="ranges" id="ranges"></div>
+      <div class="custom" id="customBox" hidden><label for="dFrom">מ-</label><input type="date" id="dFrom"><label for="dTo">עד</label><input type="date" id="dTo"></div>
+      <button class="btn" id="csvBtn">ייצוא CSV</button>
+      <button class="btn" id="logout">יציאה</button>
+    </div>
+  </header>
+  <div id="pinBanner" class="banner" hidden><span>הקוד הראשי הוא עדיין 1234. כדאי להחליף אותו בהגדרות למטה.</span></div>
+  <div id="dBody"><div class="loading">טוען נתונים…</div></div>
+  <section class="panel setup" id="setupPanel" hidden>
+    <h2>הגדרות (מנכ"ל / מנהל ראשי)</h2>
+    <div id="stAdmin" class="setup"></div>
+    <div class="row">
+      <span>קוד ראשי, רואה את כל התחנות (4–6 ספרות):</span>
+      <input class="inp" type="password" inputmode="numeric" id="newPin" maxlength="6" placeholder="קוד חדש">
+      <input class="inp" type="password" inputmode="numeric" id="newPin2" maxlength="6" placeholder="שוב">
+      <button class="btn acc" id="savePin">שמירת קוד</button>
+    </div>
+  </section>
+  <section class="panel setup" id="rpPanel" hidden><div id="rpAdmin" class="setup"></div></section>
+</div>
+<div class="toast" id="toast" hidden></div>
+<script src="config.js"></script>
+<script src="assets/common.js"></script>
+<script src="assets/dashboard.js"></script>
+</body>
+</html>
