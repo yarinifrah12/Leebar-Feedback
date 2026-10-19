@@ -1,26 +1,31 @@
 /* Tablet survey. It can only send responses — there is no way from here to the dashboard. */
 (function () {
   'use strict';
-  const { $, esc, lsGet, lsSet, lsDel, api, face, RATINGS, SCALE, EXPECT, uid } = window.LB;
+  const { $, esc, lsGet, lsSet, lsDel, face, RATINGS, SCALE, EXPECT, uid } = window.LB;
+  const S = window.LB_STORE;
+  const stCode = n => String(n || '').replace(/[^\p{L}]/gu, '').slice(0, 2).toLowerCase();
   const T = {
     en: { welcome: "We'd love to hear about your experience!", welcomeSub: 'Your feedback is anonymous and helps us keep the highest standards of food and service.', start: 'Start',
       step: (i, n) => `Question ${i} of ${n}`, expectQ: 'Did the meal meet your expectations?', textQ: 'Anything you would like to tell us?', textSub: 'Optional. Skip if you are in a hurry.',
       enjoyed: 'What did you enjoy most about your meal today?', improve: 'What can we improve?', comments: 'Additional comments', submit: 'Submit', back: 'Back',
       thanks: 'Thank you!', thanksSub: 'Your feedback helps us improve our food, service and overall dining experience.', anon: 'Anonymous', offline: 'Saved on this tablet, will sync',
-      station: 'Station: ', login: 'Station login', loginSub: "Choose this tablet's station and enter the station code. Needed once per tablet.", stLabel: 'Station', code: 'Code', loginBtn: 'Log in', wrong: 'Wrong code', noNet: 'No connection. Check the internet and try again.' },
+      station: 'Station: ', login: 'Station login', loginSub: "Choose this tablet's station and enter the station code. Needed once per tablet.", stLabel: 'Station', code: 'Code', loginBtn: 'Log in', wrong: 'Wrong code', noNet: 'No connection. Check the internet and try again.',
+      signin: 'Connect this tablet', signinSub: 'Sign in once with the Li-Bar tablet account. Diners never need to sign in.', signinBtn: 'Sign in with Microsoft' },
     he: { welcome: 'נשמח לשמוע איך היה!', welcomeSub: 'המשוב אנונימי לחלוטין ועוזר לנו לשמור על רמה גבוהה של אוכל ושירות.', start: 'התחלה',
       step: (i, n) => `שאלה ${i} מתוך ${n}`, expectQ: 'האם הארוחה עמדה בציפיות שלך?', textQ: 'רוצה להוסיף משהו?', textSub: 'לא חובה. אפשר לדלג.',
       enjoyed: 'מה הכי אהבת בארוחה היום?', improve: 'מה אפשר לשפר?', comments: 'הערות נוספות', submit: 'שליחה', back: 'חזרה',
       thanks: 'תודה רבה!', thanksSub: 'המשוב שלך עוזר לנו לשפר את האוכל, השירות וחוויית הארוחה.', anon: 'אנונימי', offline: 'נשמר בטאבלט, יסונכרן',
-      station: 'תחנה: ', login: 'התחברות תחנה', loginSub: 'בחרי את התחנה של הטאבלט והזיני את קוד התחנה. פעם אחת בלבד לכל טאבלט.', stLabel: 'תחנה', code: 'קוד', loginBtn: 'התחברות', wrong: 'קוד שגוי', noNet: 'אין חיבור לאינטרנט. בדקי את החיבור ונסי שוב.' }
+      station: 'תחנה: ', login: 'התחברות תחנה', loginSub: 'בחרי את התחנה של הטאבלט והזיני את קוד התחנה. פעם אחת בלבד לכל טאבלט.', stLabel: 'תחנה', code: 'קוד', loginBtn: 'התחברות', wrong: 'קוד שגוי', noNet: 'אין חיבור לאינטרנט. בדקי את החיבור ונסי שוב.',
+      signin: 'חיבור הטאבלט', signinSub: 'התחברות חד-פעמית עם חשבון הטאבלט של לי-בר. הסועדים לא צריכים להתחבר.', signinBtn: 'התחברות עם Microsoft' }
   };
   const STEPS = ['r0', 'r1', 'r2', 'r3', 'expect', 'text'];
   let lang = lsGet('lb_lang', 'en');
-  let session = lsGet('lb_kiosk', null);          // {token, station:{id,name,partnerLogo,partnerName}}
+  let session = lsGet('lb_kiosk', null);          // {station:{id,name,partnerLogo,partnerName}}
+  let signedIn = null;
   let stations = lsGet('lb_stations_cache', []);
   let outbox = lsGet('lb_outbox', []);
   let step = 'start', ans = {}, idleT = null;
-  const linkStation = new URLSearchParams(location.search).get('station');
+  const linkStation = new URLSearchParams(location.search).get('station') || (() => { try { return sessionStorage.getItem('lb_link_station'); } catch (e) { return null; } })();
 
   $('kBrand').innerHTML = window.LB.brandHTML();
 
@@ -39,8 +44,8 @@
   }
   async function loadStations() {
     try {
-      const r = await api('publicStations');
-      if (r.ok) { stations = r.stations; lsSet('lb_stations_cache', stations); }
+      stations = (await S.stations()).map(x => ({ id: x.id, name: x.name, partnerLogo: x.partnerLogo, partnerName: x.partnerName }));
+      lsSet('lb_stations_cache', stations);
       // keep the bound station's details fresh (name, partner logo)
       if (session) { const fresh = stations.find(s => s.id === session.station.id); if (fresh) { session.station = fresh; lsSet('lb_kiosk', session); } }
     } catch (e) {}
@@ -52,8 +57,7 @@
     const rest = [];
     for (const rec of outbox) {
       try {
-        const r = await api('submit', { token: session.token, record: rec });
-        if (!r.ok && r.error === 'not_logged_in') { rest.push(rec); }
+        await S.submit(session.station, rec);
       } catch (e) { rest.push(rec); }
     }
     outbox = rest; lsSet('lb_outbox', outbox); setStatus();
@@ -78,9 +82,16 @@
   function render() {
     const t = T[lang], m = $('kMain');
     if (!window.LB.configured()) {
-      m.innerHTML = `<div class="setup-msg" dir="rtl"><h2 style="font-size:22px;margin-bottom:6px">הדף עוד לא מחובר לגיליון</h2>
-        <p style="margin:0">יש להדביק את כתובת ה-Web App של Apps Script בקובץ <code>config.js</code> בריפו, לפי ההוראות ב-README.</p></div>`;
+      m.innerHTML = `<div class="setup-msg" dir="rtl"><h2 style="font-size:22px;margin-bottom:6px">הדף עוד לא מחובר</h2>
+        <p style="margin:0">חסרים פרטי החיבור ל-Microsoft 365 בקובץ <code>config.js</code>.</p></div>`;
       $('kProg').style.visibility = 'hidden';
+      return;
+    }
+    if (signedIn === null) { m.innerHTML = ''; $('kProg').style.visibility = 'hidden'; return; }
+    if (!signedIn) {
+      $('kProg').style.visibility = 'hidden';
+      m.innerHTML = `<h1>${t.signin}</h1><p class="k-sub">${t.signinSub}</p><button class="primary" id="msIn">${t.signinBtn}</button>`;
+      $('msIn').onclick = () => { try { if (linkStation) sessionStorage.setItem('lb_link_station', linkStation); } catch (e) {} S.login(); };
       return;
     }
     if ((step === 'start' || step === 'login') && needsLogin()) step = 'login';
@@ -97,14 +108,13 @@
         <button class="primary" type="submit" id="lgBtn">${t.loginBtn}</button></form>`;
       $('lgForm').onsubmit = async e => {
         e.preventDefault();
-        const btn = $('lgBtn'); btn.disabled = true;
-        try {
-          const r = await api('stationLogin', { station: $('lgSt').value, code: $('lgPin').value.trim() });
-          if (!r.ok) { $('lgErr').textContent = t.wrong; $('lgPin').value = ''; btn.disabled = false; return; }
-          session = { token: r.token, station: r.station }; lsSet('lb_kiosk', session);
-          if (linkStation) history.replaceState(null, '', location.pathname);
-          paintStation(); flushOutbox(); go('start');
-        } catch (err) { $('lgErr').textContent = t.noNet; btn.disabled = false; }
+        const st = stations.find(x => x.id === $('lgSt').value);
+        const code = $('lgPin').value.replace(/\s/g, '').toLowerCase();
+        if (!st || !code || code !== stCode(st.name)) { $('lgErr').textContent = t.wrong; $('lgPin').value = ''; return; }
+        session = { station: st }; lsSet('lb_kiosk', session);
+        try { sessionStorage.removeItem('lb_link_station'); } catch (e) {}
+        if (location.search) history.replaceState(null, '', location.pathname);
+        paintStation(); flushOutbox(); go('start');
       };
       return;
     }
@@ -153,9 +163,9 @@
       expect: ans.expect || null, enjoyed: ans.enjoyed || '', improve: ans.improve || '', comments: ans.comments || '' };
     go('thanks');
     try {
-      const r = await api('submit', { token: session.token, record: rec });
-      if (r.ok) return;
-    } catch (e) {}
+      await S.submit(session.station, rec);
+      return;
+    } catch (e) { console.error(e); }
     outbox.push(rec); lsSet('lb_outbox', outbox); setStatus();
   }
 
@@ -169,5 +179,11 @@
   document.addEventListener('visibilitychange', wake); wake();
 
   setLang(lang);
-  if (window.LB.configured()) { loadStations(); flushOutbox(); setInterval(flushOutbox, 60000); setInterval(loadStations, 30 * 60000); }
+  (async () => {
+    if (!window.LB.configured()) return;
+    try { signedIn = !!(await S.init()); } catch (e) { console.error(e); }
+    render();
+    if (!signedIn) return;
+    loadStations(); flushOutbox(); setInterval(flushOutbox, 60000); setInterval(loadStations, 30 * 60000);
+  })();
 })();

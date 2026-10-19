@@ -1,7 +1,6 @@
 /* Shared helpers for the tablet and dashboard pages. */
 (function () {
   'use strict';
-  const C = window.LEEBAR_CONFIG || {};
   const L = window.LB = {};
   L.$ = id => document.getElementById(id);
   L.esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -11,14 +10,7 @@
   L.lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
   L.lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
   L.lsDel = k => { try { localStorage.removeItem(k); } catch (e) {} };
-  L.configured = () => /^https:\/\/script\.google(usercontent)?\.com\//.test(C.API_URL || '');
-  /** POST to the Apps Script web app. text/plain keeps it a "simple" CORS request. */
-  L.api = async (action, body = {}) => {
-    if (!L.configured()) throw new Error('not_configured');
-    const res = await fetch(C.API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ action }, body)), redirect: 'follow' });
-    if (!res.ok) throw new Error('http_' + res.status);
-    return res.json();
-  };
+  L.configured = () => !!(window.LB_STORE && window.LB_STORE.configured());
   L.toast = msg => { const t = L.$('toast'); if (!t) return; t.textContent = msg; t.hidden = false; clearTimeout(L.toast._t); L.toast._t = setTimeout(() => t.hidden = true, 2800); };
   L.uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
   L.brandHTML = () => '<img class="lg-l" src="assets/leebar.png" alt="LEE BAR"><img class="lg-d" src="assets/leebar-dark.png" alt="LEE BAR">';

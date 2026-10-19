@@ -1,5 +1,7 @@
-// The only setting to change: paste the Web App URL from Apps Script
-// (Deploy > Manage deployments > Web app URL, ends with /exec).
+// LEE BAR feedback — connection to Li-Bar's Microsoft 365 / SharePoint.
 window.LEEBAR_CONFIG = {
-  API_URL: 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE'
+  tenantId: '6b14abc0-8a0a-497c-8308-1151ee2ec242',
+  clientId: '8ed16a19-12a3-45e1-8615-1eb8af6b3b54',
+  siteHost: 'leebarltd.sharepoint.com',
+  sitePath: '/sites/leebar'
 };

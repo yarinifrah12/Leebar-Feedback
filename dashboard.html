@@ -14,17 +14,16 @@
   html,body{height:auto}
   [hidden]{display:none!important}
   .loading{padding:40px 0;text-align:center;color:var(--muted)}
+  .pin-box{max-width:460px}
+  #gateBody .primary{font-size:19px;padding:14px 32px}
 </style>
 </head>
 <body>
 <div id="pinGate" dir="rtl" lang="he">
   <div class="pin-box">
     <div class="brand" id="pBrand"></div>
-    <h2 style="font-size:24px">כניסה לדשבורד המשוב</h2>
-    <div class="d-meta">הזיני את הקוד שלך. מנכ"ל רואה את כל התחנות, מנהל תחנה רואה את התחנה שלו.</div>
-    <div class="pin-dots" id="pinDots"></div>
-    <div class="pin-err" id="pinErr" role="alert"></div>
-    <div class="pin-pad" id="pinPad"></div>
+    <h2 style="font-size:24px">דשבורד משוב חדרי האוכל</h2>
+    <div id="gateBody" style="display:grid;gap:14px;justify-items:center;width:100%"><div class="loading">טוען…</div></div>
   </div>
 </div>
 
@@ -42,26 +41,22 @@
       <div class="ranges" id="ranges"></div>
       <div class="custom" id="customBox" hidden><label for="dFrom">מ-</label><input type="date" id="dFrom"><label for="dTo">עד</label><input type="date" id="dTo"></div>
       <button class="btn" id="csvBtn">ייצוא CSV</button>
+      <span class="d-meta" id="whoami" dir="ltr"></span>
       <button class="btn" id="logout">יציאה</button>
     </div>
   </header>
-  <div id="pinBanner" class="banner" hidden><span>הקוד הראשי הוא עדיין 1234. כדאי להחליף אותו בהגדרות למטה.</span></div>
   <div id="dBody"><div class="loading">טוען נתונים…</div></div>
   <section class="panel setup" id="setupPanel" hidden>
-    <h2>הגדרות (מנכ"ל / מנהל ראשי)</h2>
+    <h2>הגדרות (מנהלים ראשיים)</h2>
     <div id="stAdmin" class="setup"></div>
-    <div class="row">
-      <span>קוד ראשי, רואה את כל התחנות (4–6 ספרות):</span>
-      <input class="inp" type="password" inputmode="numeric" id="newPin" maxlength="6" placeholder="קוד חדש">
-      <input class="inp" type="password" inputmode="numeric" id="newPin2" maxlength="6" placeholder="שוב">
-      <button class="btn acc" id="savePin">שמירת קוד</button>
-    </div>
   </section>
   <section class="panel setup" id="rpPanel" hidden><div id="rpAdmin" class="setup"></div></section>
 </div>
 <div class="toast" id="toast" hidden></div>
 <script src="config.js"></script>
+<script src="assets/msal-browser.min.js"></script>
 <script src="assets/common.js"></script>
+<script src="assets/store.js"></script>
 <script src="assets/dashboard.js"></script>
 </body>
 </html>

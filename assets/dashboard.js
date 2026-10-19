@@ -1,13 +1,15 @@
-/* Management dashboard: code login, per-station scoping, CEO overview, settings. */
+/* Management dashboard: Microsoft sign-in, per-station scoping, CEO overview, settings (SharePoint). */
 (function () {
   'use strict';
-  const { $, esc, pad, dayKey, fmt, api, face, toast, RATINGS, SCALE, EXPECT } = window.LB;
+  const { $, esc, pad, dayKey, fmt, face, toast, RATINGS, SCALE, EXPECT } = window.LB;
+  const S = window.LB_STORE;
   const MEALS = [{ he: 'בוקר', f: h => h < 11 }, { he: 'צהריים', f: h => h >= 11 && h < 16 }, { he: 'ערב', f: h => h >= 16 }];
   const RANGES = [['1', 'היום'], ['7', '7 ימים'], ['30', '30 יום'], ['all', 'הכל'], ['custom', 'טווח תאריכים']];
-  const ERR = { pin_format: 'הקוד צריך להיות 4 עד 6 ספרות', pin_taken: 'הקוד הזה כבר בשימוש, בחרי אחר', email_format: 'כתובת המייל לא תקינה', name_required: 'צריך שם לתחנה', not_admin: 'רק הקוד הראשי יכול לשנות הגדרות' };
+  const stCode = n => String(n || '').replace(/[^\p{L}]/gu, '').slice(0, 2).toLowerCase();
+  const isEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
-  let token = null, role = null, data = { responses: [], stations: [] }, viewStation = 'all', range = '7', loading = false, pollT = null, idleT = null, rpConfirm = null;
-  const ss = { get: k => { try { return JSON.parse(sessionStorage.getItem(k)); } catch (e) { return null; } }, set: (k, v) => { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }, del: k => { try { sessionStorage.removeItem(k); } catch (e) {} } };
+  // role: 'all' (admin / CEO), an array of station ids (station manager), or null
+  let role = null, data = { responses: [], stations: [], recipients: [], settings: {} }, viewStation = 'all', range = '7', loading = false, pollT = null, rpConfirm = null;
 
   $('pBrand').innerHTML = $('dBrand').innerHTML = window.LB.brandHTML();
   const stName = id => data.stations.find(x => x.id === id)?.name || 'ללא תחנה';
@@ -17,53 +19,51 @@
   const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
   const scoreColor = v => v == null ? 'var(--muted)' : `var(--r${Math.max(1, Math.min(5, Math.round(v)))})`;
 
-  /* ---------------- login ---------------- */
-  let pinBuf = '', fails = 0, lockUntil = 0;
-  function drawPin() { $('pinDots').innerHTML = [0, 1, 2, 3, 4, 5].slice(0, Math.max(4, pinBuf.length)).map(i => `<i class="${i < pinBuf.length ? 'on' : ''}"></i>`).join(''); }
-  $('pinPad').innerHTML = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'ok'].map(k => `<button data-k="${k}" class="${k.length > 1 ? 'fn' : ''}">${k === 'del' ? 'מחיקה' : k === 'ok' ? 'כניסה' : k}</button>`).join('');
-  $('pinPad').addEventListener('click', e => {
-    const b = e.target.closest('button'); if (!b) return;
-    const k = b.dataset.k;
-    if (k === 'del') pinBuf = pinBuf.slice(0, -1); else if (k === 'ok') return tryLogin(); else if (pinBuf.length < 6) pinBuf += k;
-    drawPin();
-  });
-  document.addEventListener('keydown', e => {
-    if ($('pinGate').hidden) return;
-    if (/^\d$/.test(e.key) && pinBuf.length < 6) pinBuf += e.key; else if (e.key === 'Backspace') pinBuf = pinBuf.slice(0, -1); else if (e.key === 'Enter') return tryLogin(); else return;
-    drawPin();
-  });
-  async function tryLogin() {
-    if (!window.LB.configured()) { $('pinErr').textContent = 'הדף עוד לא מחובר לגיליון (config.js)'; return; }
-    if (Date.now() < lockUntil) { $('pinErr').textContent = 'יותר מדי ניסיונות. נסי שוב בעוד חצי דקה.'; return; }
-    if (pinBuf.length < 4) { $('pinErr').textContent = 'הקוד הוא 4 עד 6 ספרות'; return; }
-    $('pinErr').textContent = 'בודק…';
-    try {
-      const r = await api('login', { pin: pinBuf });
-      pinBuf = ''; drawPin();
-      if (!r.ok) {
-        fails++; const box = $('pinDots'); box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
-        if (fails >= 5) { lockUntil = Date.now() + 30000; fails = 0; }
-        $('pinErr').textContent = 'קוד שגוי'; return;
-      }
-      fails = 0; token = r.token; role = r.role; ss.set('lb_dash', { token, role });
-      openDash();
-    } catch (e) { $('pinErr').textContent = 'אין חיבור. בדקי את האינטרנט ונסי שוב.'; }
+  /* ---------------- sign-in / gate ---------------- */
+  function gate(html) { $('dash').hidden = true; $('pinGate').hidden = false; $('gateBody').innerHTML = html; }
+  function gateSignIn(msg) {
+    gate(`<div class="d-meta">${msg || 'כניסה עם חשבון ה-Microsoft של לי-בר (@leebar.co.il). מנכ"ל ומנהלים ראשיים רואים את כל התחנות, מנהל תחנה רואה את התחנות שלו.'}</div>
+      <button class="primary" id="msIn">התחברות עם Microsoft</button>`);
+    $('msIn').onclick = () => S.login();
   }
-  function logout() {
-    ss.del('lb_dash'); token = role = null; clearInterval(pollT); clearTimeout(idleT);
-    data = { responses: [], stations: [] }; viewStation = 'all';
-    $('dash').hidden = true; $('pinGate').hidden = false; $('pinErr').textContent = ''; pinBuf = ''; drawPin();
+  function gateMsg(title, msg, btns = '') {
+    gate(`<h3 style="margin:0;font-size:19px">${title}</h3><div class="d-meta">${msg}</div>${btns}<button class="ghost" id="msOut">התחברות עם משתמש אחר</button>`);
+    $('msOut').onclick = () => S.logout();
   }
-  $('logout').onclick = logout;
-  function armIdle() { clearTimeout(idleT); if (token) idleT = setTimeout(logout, 20 * 60000); }
-  ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, armIdle, { passive: true }));
+  $('logout').onclick = () => S.logout();
+
+  async function boot() {
+    if (!window.LB.configured()) { gateMsg('הדף עוד לא מחובר', 'חסרים פרטי החיבור ל-Microsoft 365 בקובץ config.js.'); return; }
+    let acc = null;
+    try { acc = await S.init(); } catch (e) { console.error(e); }
+    if (!acc) { gateSignIn(); return; }
+    gate('<div class="loading">בודק הרשאות…</div>');
+    let missing;
+    try { missing = await S.needsSetup(); }
+    catch (e) { console.error(e); gateMsg('אין גישה לאתר SharePoint', 'החשבון ' + esc(S.email()) + ' לא מצליח לגשת לאתר leebar ב-SharePoint. בקשי ממנהל המערכת הרשאה לאתר.'); return; }
+    if (missing.length) {
+      gateMsg('הקמה ראשונה', 'הרשימות של מערכת המשוב עוד לא קיימות באתר SharePoint של לי-בר. לחיצה אחת יוצרת אותן, מוסיפה את תחנת נתב"ג ואת 10 הנמענים, ומגדירה אותך (' + esc(S.email()) + ') כמנהלת ראשית.',
+        '<button class="primary" id="doSetup">הקמת הרשימות ב-SharePoint</button><div class="pin-err" id="setupErr" role="alert"></div>');
+      $('doSetup').onclick = async () => {
+        $('doSetup').disabled = true; $('setupErr').textContent = 'יוצר רשימות…';
+        try { await S.setup(); location.reload(); }
+        catch (e) { console.error(e); $('doSetup').disabled = false; $('setupErr').textContent = e.status === 403 ? 'אין הרשאה ליצור רשימות. צריך הרשאת Sites.Manage.All עם admin consent, והרשאת עריכה באתר.' : 'ההקמה נכשלה: ' + esc(e.message); }
+      };
+      return;
+    }
+    try { await load(false, true); }
+    catch (e) { console.error(e); gateMsg('אין הרשאה', 'לחשבון ' + esc(S.email()) + ' אין הרשאה לרשימות המשוב. בקשי ממנהל המערכת.'); return; }
+    if (!role) { gateMsg('אין הרשאה לדשבורד', 'החשבון ' + esc(S.email()) + ' לא מוגדר כמנהל ראשי או כמנהל תחנה. המנהלת הראשית יכולה להוסיף אותך בהגדרות.'); return; }
+    openDash();
+  }
 
   function openDash() {
     $('pinGate').hidden = true; $('dash').hidden = false;
-    viewStation = role === 'all' ? 'all' : role;
+    $('whoami').textContent = S.email();
+    viewStation = role === 'all' ? 'all' : (role.length === 1 ? role[0] : 'all');
     $('setupPanel').hidden = $('rpPanel').hidden = role !== 'all';
-    armIdle(); load();
-    clearInterval(pollT); pollT = setInterval(() => { if (document.visibilityState === 'visible') load(true); }, 60000);
+    draw();
+    clearInterval(pollT); pollT = setInterval(() => { if (document.visibilityState === 'visible') load(true).catch(() => {}); }, 60000);
   }
 
   /* ---------------- data ---------------- */
@@ -78,16 +78,27 @@
     }
     const len = hi - lo; return [lo - offset * len, hi - offset * len];
   }
-  async function load(quiet) {
+  async function load(quiet, initial) {
     if (loading) return; loading = true;
-    const cur = periodBounds(0), prev = periodBounds(1);
-    const from = prev ? prev[0] : cur[0], to = cur[1];
-    if (!quiet) $('dMeta').textContent = 'טוען נתונים…';
     try {
-      const r = await api('data', { token, from: from || 0, to: isFinite(to) ? to : 0 });
-      if (!r.ok) { if (r.error === 'expired') { toast('החיבור פג, יש להיכנס שוב'); logout(); } loading = false; return; }
-      data = r; draw();
-    } catch (e) { $('dMeta').textContent = 'אין חיבור לגיליון. הנתונים יתעדכנו כשהחיבור יחזור.'; }
+      const cur = periodBounds(0), prev = periodBounds(1);
+      const from = prev ? prev[0] : cur[0], to = cur[1];
+      if (!quiet && !initial) $('dMeta').textContent = 'טוען נתונים…';
+      const [stations, settings] = await Promise.all([S.stations(), S.settings()]);
+      const me = S.email();
+      const admins = S.splitList(settings.admins && settings.admins.value);
+      const mine = stations.filter(x => x.managers.includes(me)).map(x => x.id);
+      role = admins.includes(me) ? 'all' : (mine.length ? mine : null);
+      if (!role) { loading = false; return; }
+      let responses = await S.responses(from || 0, isFinite(to) ? to : 0);
+      let visibleStations = stations;
+      if (role !== 'all') { responses = responses.filter(r => role.includes(r.station)); visibleStations = stations.filter(x => role.includes(x.id)); }
+      data = { responses, stations: visibleStations, settings, admins, prevDay: !settings.prevDay || settings.prevDay.value !== 'false', recipients: role === 'all' ? await S.recipients() : [] };
+      if (!initial) draw();
+    } catch (e) {
+      if (initial) { loading = false; throw e; }
+      console.error(e); $('dMeta').textContent = 'אין חיבור ל-SharePoint. הנתונים יתעדכנו כשהחיבור יחזור.';
+    }
     loading = false;
   }
 
@@ -100,18 +111,16 @@
   });
   $('dFrom').onchange = $('dTo').onchange = () => load();
   $('stSel').onchange = e => { viewStation = e.target.value; draw(); };
-
   /* ---------------- render ---------------- */
   function draw() {
     const inP = (l, b) => b ? l.filter(r => r.ts >= b[0] && r.ts < b[1]) : [];
     const scoped = viewStation === 'all' ? data.responses : data.responses.filter(r => r.station === viewStation);
     const L = inP(scoped, periodBounds(0)).sort((a, b) => b.ts - a.ts), P = inP(scoped, periodBounds(1));
-    const sel = $('stSel'); sel.hidden = role !== 'all' || data.stations.length < 2;
+    const sel = $('stSel'); sel.hidden = data.stations.length < 2;
     if (!sel.hidden) { sel.innerHTML = `<option value="all">כל התחנות</option>` + data.stations.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join(''); sel.value = viewStation; }
     $('dTitle').textContent = viewStation === 'all' ? (data.stations.length > 1 ? 'משוב חדרי האוכל · כל התחנות' : 'משוב חדר האוכל' + (data.stations[0] ? ' · ' + data.stations[0].name : '')) : stName(viewStation);
     const now = new Date();
     $('dMeta').textContent = `${L.length} משובים בטווח · עודכן ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    $('pinBanner').hidden = !(role === 'all' && data.defaultPin);
     if (role === 'all') { drawStAdmin(); drawReports(); }
     const body = $('dBody');
     if (!L.length) {
@@ -232,47 +241,50 @@
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   };
 
-  /* ---------------- admin: stations & codes ---------------- */
-  async function adminCall(action, body, okMsg) {
-    try { const r = await api(action, Object.assign({ token }, body)); if (!r.ok) { toast(ERR[r.error] || 'לא הצלחתי לשמור'); return false; } if (okMsg) toast(okMsg); load(true); return r; }
-    catch (e) { toast('אין חיבור. נסי שוב.'); return false; }
+
+  /* ---------------- admin: stations, managers, admins ---------------- */
+  async function adminDo(fn, okMsg) {
+    try { await fn(); if (okMsg) toast(okMsg); await load(true); return true; }
+    catch (e) { console.error(e); toast(e.status === 403 ? 'אין לך הרשאת עריכה ברשימה ב-SharePoint' : 'לא הצלחתי לשמור. נסי שוב.'); return false; }
   }
   const tabletLink = id => location.origin + location.pathname.replace(/dashboard\.html$/, 'indexF.html') + '?station=' + encodeURIComponent(id);
   const dashLink = () => location.origin + location.pathname;
   function busy(box) { return document.activeElement && box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT' && document.activeElement.type !== 'checkbox'; }
+  const parseEmails = v => { const l = S.splitList(v); const bad = l.filter(x => !isEmail(x)); return bad.length ? null : l; };
 
   function drawStAdmin() {
     const box = $('stAdmin'); if (busy(box)) return;
-    box.innerHTML = `<h3 style="font-size:17px;margin:0">תחנות</h3>
+    box.innerHTML = `<h3 style="font-size:17px;margin:0">תחנות ומנהלי תחנות</h3>
       <div class="st-list">${data.stations.map(x => `<div class="st-row"><span class="grow">${esc(x.name)}</span>
-        <span class="tag">קוד טאבלט: ${esc(x.code || '')}</span>
-        <span class="tag">${x.hasPin ? 'יש קוד מנהל' : 'אין קוד מנהל'}</span>
-        <input class="inp" type="password" inputmode="numeric" maxlength="6" placeholder="קוד מנהל חדש" data-pin="${esc(x.id)}">
-        <button class="btn" data-savepin="${esc(x.id)}">שמירה</button>
+        <span class="tag">קוד טאבלט: ${esc(stCode(x.name))}</span>
+        <input class="inp wide" type="text" dir="ltr" placeholder="מיילים של מנהלי התחנה, מופרדים בפסיק" value="${esc(x.managers.join(', '))}" data-mgr="${esc(x._id)}" aria-label="מנהלי ${esc(x.name)}">
+        <button class="btn" data-savemgr="${esc(x._id)}">שמירה</button>
         <button class="btn" data-copy="${esc(tabletLink(x.id))}">העתקת קישור לטאבלט</button></div>`).join('')}</div>
-      <div class="row"><input class="inp wide" id="newStName" placeholder="שם תחנה חדשה"><input class="inp" type="password" inputmode="numeric" maxlength="6" id="newStPin" placeholder="קוד מנהל">
+      <div class="row"><input class="inp wide" id="newStName" placeholder="שם תחנה חדשה"><input class="inp wide" id="newStMgr" dir="ltr" placeholder="מייל מנהל התחנה (לא חובה)">
         <button class="btn acc" id="addSt">הוספת תחנה</button></div>
+      <h3 style="font-size:17px;margin:8px 0 0">מנהלים ראשיים (רואים את כל התחנות)</h3>
+      <div class="row"><input class="inp wide" id="admins" dir="ltr" style="min-width:min(520px,100%)" value="${esc((data.admins || []).join(', '))}"><button class="btn acc" id="saveAdmins">שמירה</button></div>
       <div class="row"><span>קישור הדשבורד למנכ"ל ולמנהלים:</span><button class="btn" data-copy="${esc(dashLink())}">העתקת קישור דשבורד</button></div>
-      <div class="d-meta">קוד הטאבלט הוא 2 האותיות הראשונות של שם התחנה, והוא רק מחבר טאבלט לתחנה. קוד המנהל (מספרים) פותח את הדשבורד של התחנה בלבד.</div>`;
+      <div class="d-meta">כל מנהל נכנס עם חשבון ה-Microsoft שלו. מנהל תחנה רואה רק את התחנות שבהן המייל שלו מופיע. קוד הטאבלט (2 האותיות הראשונות של שם התחנה) רק מחבר טאבלט לתחנה.</div>`;
     box.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => { const t = b.dataset.copy; try { await navigator.clipboard.writeText(t); toast('הקישור הועתק'); } catch (e) { prompt('העתיקי את הקישור:', t); } });
-    box.querySelectorAll('[data-savepin]').forEach(b => b.onclick = () => {
-      const id = b.dataset.savepin, v = box.querySelector(`[data-pin="${id}"]`).value.trim();
-      if (!/^\d{4,6}$/.test(v)) { toast(ERR.pin_format); return; }
-      adminCall('setStationPin', { id, pin: v }, 'קוד המנהל נשמר');
+    box.querySelectorAll('[data-savemgr]').forEach(b => b.onclick = () => {
+      const id = b.dataset.savemgr, l = parseEmails(box.querySelector(`[data-mgr="${id}"]`).value);
+      if (!l) { toast('אחת הכתובות לא תקינה'); return; }
+      adminDo(() => S.updateStation(id, { Managers: l.join(', ') }), 'מנהלי התחנה נשמרו');
     });
     $('addSt').onclick = () => {
-      const n = $('newStName').value.trim(), v = $('newStPin').value.trim();
-      if (!n) { toast(ERR.name_required); return; }
-      if (v && !/^\d{4,6}$/.test(v)) { toast(ERR.pin_format); return; }
-      adminCall('addStation', { name: n, pin: v }, 'התחנה נוספה').then(r => { if (r) { $('newStName').value = ''; $('newStPin').value = ''; } });
+      const n = $('newStName').value.trim(), l = parseEmails($('newStMgr').value);
+      if (!n) { toast('צריך שם לתחנה'); return; }
+      if (!l) { toast('כתובת המייל לא תקינה'); return; }
+      adminDo(() => S.addStation(n, l, data.stations.length + 1), 'התחנה נוספה').then(ok => { if (ok) { $('newStName').value = ''; $('newStMgr').value = ''; } });
+    };
+    $('saveAdmins').onclick = () => {
+      const l = parseEmails($('admins').value);
+      if (!l || !l.length) { toast('צריך לפחות כתובת תקינה אחת'); return; }
+      if (!l.includes(S.email())) { toast('השאירי את המייל שלך ברשימה, אחרת תאבדי גישה להגדרות'); return; }
+      adminDo(() => S.setSetting('admins', l.join(', ')), 'המנהלים הראשיים נשמרו');
     };
   }
-  $('savePin').onclick = () => {
-    const a = $('newPin').value.trim(), b = $('newPin2').value.trim();
-    if (!/^\d{4,6}$/.test(a)) { toast(ERR.pin_format); return; }
-    if (a !== b) { toast('הקודים לא תואמים'); return; }
-    adminCall('setMasterPin', { pin: a }, 'הקוד הראשי עודכן').then(r => { if (r) { $('newPin').value = ''; $('newPin2').value = ''; } });
-  };
 
   /* ---------------- admin: email recipients ---------------- */
   function drawReports() {
@@ -288,15 +300,15 @@
         <td><input class="inp" type="time" data-time="${esc(r.id)}" value="${esc(r.time || '09:00')}" step="3600"></td>
         <td><input class="inp" type="email" data-mail="${esc(r.id)}" value="${esc(r.email || '')}" placeholder="name@leebar.co.il"></td>
         <td>${chips(r)}</td>
-        <td style="white-space:nowrap"><button class="icon-btn" data-test="${esc(r.id)}">מייל ניסיון</button><button class="icon-btn danger" data-del="${esc(r.id)}">${rpConfirm === r.id ? 'למחוק? לחצי שוב' : 'מחיקה'}</button></td></tr>`).join('') || '<tr><td colspan="5" class="d-meta">אין נמענים עדיין.</td></tr>'}
+        <td style="white-space:nowrap"><button class="icon-btn danger" data-del="${esc(r.id)}">${rpConfirm === r.id ? 'למחוק? לחצי שוב' : 'מחיקה'}</button></td></tr>`).join('') || '<tr><td colspan="5" class="d-meta">אין נמענים עדיין.</td></tr>'}
       </tbody></table></div>
-      <div class="d-meta">כל נמען מקבל מייל בשעה שנבחרה (בשעות עגולות), רק עם התחנות שסומנו לו. המייל נשלח מחשבון הגוגל שבו נוצר הגיליון.</div>`;
-    const save = (r, patch) => adminCall('saveRecipient', { recipient: Object.assign({}, r, patch) }, 'נשמר');
+      <div class="d-meta">ההגדרות נשמרות ברשימה "LBFeedbackRecipients" ב-SharePoint. השליחה עצמה נעשית בתהליך Power Automate שקורא את הרשימה הזו.</div>`;
+    const save = (r, p) => adminDo(() => S.saveRecipient(Object.assign({}, r, p), recips.length + 1), 'נשמר');
     const byId = id => recips.find(x => x.id === id);
-    $('rpPrev').onchange = e => adminCall('setPrevDay', { value: e.target.checked }, 'נשמר');
+    $('rpPrev').onchange = e => adminDo(() => S.setSetting('prevDay', e.target.checked ? 'true' : 'false'), 'נשמר');
     box.querySelectorAll('[data-act]').forEach(x => x.onchange = () => save(byId(x.dataset.act), { active: x.checked }));
     box.querySelectorAll('[data-time]').forEach(x => x.onchange = () => { if (x.value) save(byId(x.dataset.time), { time: x.value.slice(0, 2) + ':00' }); });
-    box.querySelectorAll('[data-mail]').forEach(x => x.onchange = () => { const v = x.value.trim(); if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { toast(ERR.email_format); return; } save(byId(x.dataset.mail), { email: v }); });
+    box.querySelectorAll('[data-mail]').forEach(x => x.onchange = () => { const v = x.value.trim(); if (v && !isEmail(v)) { toast('כתובת המייל לא תקינה'); return; } save(byId(x.dataset.mail), { email: v }); });
     box.querySelectorAll('.chip').forEach(c => c.onclick = () => {
       const r = byId(c.dataset.rid); if (!r) return;
       if (c.dataset.st === 'all') return save(r, { stations: 'all' });
@@ -304,17 +316,13 @@
       cur = cur.includes(c.dataset.st) ? cur.filter(x => x !== c.dataset.st) : cur.concat(c.dataset.st);
       save(r, { stations: cur.length ? cur : 'all' });
     });
-    box.querySelectorAll('[data-test]').forEach(b => b.onclick = () => adminCall('sendTestReport', { id: b.dataset.test }, 'מייל ניסיון נשלח'));
     box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
       const id = b.dataset.del;
       if (rpConfirm !== id) { rpConfirm = id; drawReports(); setTimeout(() => { if (rpConfirm === id) { rpConfirm = null; drawReports(); } }, 4000); return; }
-      rpConfirm = null; adminCall('deleteRecipient', { id }, 'הנמען נמחק');
+      rpConfirm = null; adminDo(() => S.deleteRecipient(id), 'הנמען נמחק');
     });
-    $('rpAdd').onclick = () => adminCall('saveRecipient', { recipient: { email: '', time: '09:00', stations: 'all', active: true } }, 'נוספה שורה חדשה');
+    $('rpAdd').onclick = () => adminDo(() => S.saveRecipient({ email: '', time: '09:00', stations: 'all', active: true }, recips.length + 1), 'נוספה שורה חדשה');
   }
 
-  /* ---------------- boot ---------------- */
-  drawPin();
-  const saved = ss.get('lb_dash');
-  if (saved && saved.token) { token = saved.token; role = saved.role; openDash(); }
+  boot();
 })();
