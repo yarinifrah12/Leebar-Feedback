@@ -8,13 +8,13 @@
     en: { welcome: "We'd love to hear about your experience!", welcomeSub: 'Your feedback is anonymous and helps us keep the highest standards of food and service.', start: 'Start',
       step: (i, n) => `Question ${i} of ${n}`, expectQ: 'Did the meal meet your expectations?', textQ: 'Anything you would like to tell us?', textSub: 'Optional. Skip if you are in a hurry.',
       enjoyed: 'What did you enjoy most about your meal today?', improve: 'What can we improve?', comments: 'Additional comments', submit: 'Submit', back: 'Back',
-      thanks: 'Thank you!', thanksSub: 'Your feedback helps us improve our food, service and overall dining experience.', anon: 'Anonymous', offline: 'Saved on this tablet, will sync',
+      thanks: 'Thank you!', thanksSub: 'Your feedback helps us improve our food, service and overall dining experience.', back: (n) => `Back to the start in ${n}… tap anywhere to start now`, anon: 'Anonymous', offline: 'Saved on this tablet, will sync',
       station: 'Station: ', login: 'Station login', loginSub: "Choose this tablet's station and enter the station code. Needed once per tablet.", stLabel: 'Station', code: 'Code', loginBtn: 'Log in', wrong: 'Wrong code', noNet: 'No connection. Check the internet and try again.',
       signin: 'Connect this tablet', signinSub: 'Sign in once with the Li-Bar tablet account. Diners never need to sign in.', signinBtn: 'Sign in with Microsoft' },
     he: { welcome: 'נשמח לשמוע איך היה!', welcomeSub: 'המשוב אנונימי לחלוטין ועוזר לנו לשמור על רמה גבוהה של אוכל ושירות.', start: 'התחלה',
       step: (i, n) => `שאלה ${i} מתוך ${n}`, expectQ: 'האם הארוחה עמדה בציפיות שלך?', textQ: 'רוצה להוסיף משהו?', textSub: 'לא חובה. אפשר לדלג.',
       enjoyed: 'מה הכי אהבת בארוחה היום?', improve: 'מה אפשר לשפר?', comments: 'הערות נוספות', submit: 'שליחה', back: 'חזרה',
-      thanks: 'תודה רבה!', thanksSub: 'המשוב שלך עוזר לנו לשפר את האוכל, השירות וחוויית הארוחה.', anon: 'אנונימי', offline: 'נשמר בטאבלט, יסונכרן',
+      thanks: 'תודה רבה!', thanksSub: 'המשוב שלך עוזר לנו לשפר את האוכל, השירות וחוויית הארוחה.', back: (n) => `חוזרים למסך הפתיחה בעוד ${n}… אפשר לגעת במסך כדי להתחיל מיד`, anon: 'אנונימי', offline: 'נשמר בטאבלט, יסונכרן',
       station: 'תחנה: ', login: 'התחברות תחנה', loginSub: 'בחרי את התחנה של הטאבלט והזיני את קוד התחנה. פעם אחת בלבד לכל טאבלט.', stLabel: 'תחנה', code: 'קוד', loginBtn: 'התחברות', wrong: 'קוד שגוי', noNet: 'אין חיבור לאינטרנט. בדקי את החיבור ונסי שוב.',
       signin: 'חיבור הטאבלט', signinSub: 'התחברות חד-פעמית עם חשבון הטאבלט של לי-בר. הסועדים לא צריכים להתחבר.', signinBtn: 'התחברות עם Microsoft' }
   };
@@ -24,7 +24,7 @@
   let signedIn = null;
   let stations = lsGet('lb_stations_cache', []);
   let outbox = lsGet('lb_outbox', []);
-  let step = 'start', ans = {}, idleT = null;
+  let step = 'start', ans = {}, idleT = null, thanksT = null;
   const linkStation = new URLSearchParams(location.search).get('station') || (() => { try { return sessionStorage.getItem('lb_link_station'); } catch (e) { return null; } })();
 
   $('kBrand').innerHTML = window.LB.brandHTML();
@@ -74,7 +74,7 @@
 
   /* ---------- flow ---------- */
   const needsLogin = () => !session || (linkStation && linkStation !== session.station.id);
-  function go(s) { step = s; render(); armIdle(); }
+  function go(s) { step = s; $('kMain').onclick = null; render(); armIdle(); }
   function armIdle() { clearTimeout(idleT); if (step !== 'start' && step !== 'thanks' && step !== 'login') idleT = setTimeout(reset, 60000); }
   function reset() { ans = {}; go(needsLogin() ? 'login' : 'start'); }
   document.addEventListener('pointerdown', armIdle, { passive: true });
@@ -153,8 +153,16 @@
       $('sub').onclick = () => { grab(); submit(); };
       $('bk').onclick = () => { grab(); go('expect'); };
     } else if (step === 'thanks') {
-      m.innerHTML = `<div class="thanks-mark">${face(5)}</div><h1>${t.thanks}</h1><p class="k-sub">${t.thanksSub}</p>`;
-      setTimeout(() => { if (step === 'thanks') reset(); }, 6000);
+      let left = 4;
+      m.innerHTML = `<div class="thanks-mark">${face(5)}</div><h1>${t.thanks}</h1><p class="k-sub">${t.thanksSub}</p><p class="k-sub" id="backIn" style="font-size:15px">${t.back(left)}</p>`;
+      clearInterval(thanksT);
+      thanksT = setInterval(() => {
+        if (step !== 'thanks') { clearInterval(thanksT); return; }
+        left--; if (left <= 0) { clearInterval(thanksT); reset(); return; }
+        const el = $('backIn'); if (el) el.textContent = t.back(left);
+      }, 1000);
+      // attach after the submit tap has finished bubbling, so it does not skip the thank-you screen
+      setTimeout(() => { if (step === 'thanks') m.onclick = () => { clearInterval(thanksT); m.onclick = null; reset(); }; }, 400);
     }
   }
 
