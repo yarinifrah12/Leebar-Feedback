@@ -25,6 +25,8 @@
   let stations = lsGet('lb_stations_cache', []);
   let outbox = lsGet('lb_outbox', []);
   let step = 'start', ans = {}, idleT = null, thanksT = null;
+  // ?demo — preview the survey without signing in; nothing is saved
+  const demo = new URLSearchParams(location.search).has('demo');
   const linkStation = new URLSearchParams(location.search).get('station') || (() => { try { return sessionStorage.getItem('lb_link_station'); } catch (e) { return null; } })();
 
   $('kBrand').innerHTML = window.LB.brandHTML();
@@ -40,7 +42,7 @@
   function setStatus() {
     const off = outbox.length > 0;
     $('kStatus').classList.toggle('off', off);
-    $('kStatusTxt').textContent = off ? T[lang].offline : T[lang].anon;
+    $('kStatusTxt').textContent = demo ? (lang === 'he' ? 'מצב תצוגה – לא נשמר' : 'Preview – not saved') : off ? T[lang].offline : T[lang].anon;
   }
   async function loadStations() {
     try {
@@ -167,6 +169,7 @@
   }
 
   async function submit() {
+    if (demo) { go('thanks'); return; }
     const rec = { id: uid(), ts: Date.now(), lang, food: ans.food || null, service: ans.service || null, variety: ans.variety || null, clean: ans.clean || null,
       expect: ans.expect || null, enjoyed: ans.enjoyed || '', improve: ans.improve || '', comments: ans.comments || '' };
     go('thanks');
@@ -188,6 +191,13 @@
 
   setLang(lang);
   (async () => {
+    if (demo) {
+      signedIn = true;
+      session = { station: { id: 'natbag', name: 'כוחות זרים - נתב"ג', partnerLogo: 'assets/noamer.png', partnerName: 'NOAMER' } };
+      paintStation(); render();
+      $('kStatusTxt').textContent = lang === 'he' ? 'מצב תצוגה – לא נשמר' : 'Preview – not saved';
+      return;
+    }
     if (!window.LB.configured()) return;
     try { signedIn = !!(await S.init()); } catch (e) { console.error(e); }
     render();
