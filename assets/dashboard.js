@@ -237,7 +237,7 @@
     try { const r = await api(action, Object.assign({ token }, body)); if (!r.ok) { toast(ERR[r.error] || 'לא הצלחתי לשמור'); return false; } if (okMsg) toast(okMsg); load(true); return r; }
     catch (e) { toast('אין חיבור. נסי שוב.'); return false; }
   }
-  const tabletLink = id => location.origin + location.pathname.replace(/dashboard\.html$/, '') + '?station=' + encodeURIComponent(id);
+  const tabletLink = id => location.origin + location.pathname.replace(/dashboard\.html$/, 'indexF.html') + '?station=' + encodeURIComponent(id);
   const dashLink = () => location.origin + location.pathname;
   function busy(box) { return document.activeElement && box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT' && document.activeElement.type !== 'checkbox'; }
 
