@@ -115,6 +115,7 @@ h1,h2,h3{font-family:var(--font-d);font-weight:400;text-wrap:balance;margin:0}
 .cmt .lbl{color:var(--muted);font-weight:600}
 .empty{text-align:center;padding:40px 16px;display:grid;gap:12px;justify-items:center;color:var(--muted)}
 .empty h2{color:var(--ink)}
+.empty svg{width:72px;height:72px}
 .setup{display:grid;gap:10px;font-size:14px}
 .setup .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .logo-prev{height:48px;max-width:180px;object-fit:contain;border:1px dashed var(--line);border-radius:8px;padding:4px;background:var(--bg)}

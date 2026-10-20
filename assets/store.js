@@ -71,7 +71,7 @@
     let url = `/sites/${await site()}/lists/${ids[k]}/items?$expand=fields&$top=999` + (filter ? '&$filter=' + encodeURIComponent(filter) : '');
     const out = [];
     while (url) { const r = await g(url); out.push(...(r.value || [])); url = r['@odata.nextLink'] || null; }
-    return out.map(i => Object.assign({ _id: i.id, _author: i.createdBy && i.createdBy.user && i.createdBy.user.email }, i.fields));
+    return out.map(i => Object.assign({ _id: i.id, _created: i.createdDateTime, _author: i.createdBy && i.createdBy.user && i.createdBy.user.email }, i.fields));
   }
   const create = async (k, fields) => g(`/sites/${await site()}/lists/${(await lists())[k]}/items`, { method: 'POST', body: { fields } });
   const patch = async (k, id, fields) => g(`/sites/${await site()}/lists/${(await lists())[k]}/items/${id}/fields`, { method: 'PATCH', body: fields });
@@ -110,9 +110,15 @@
   S.settings = async () => { const o = {}; (await items('settings')).forEach(x => { o[x.Title] = { _id: x._id, value: x.Value || '' }; }); return o; };
   S.recipients = async () => (await items('recipients')).map(x => ({ _id: x._id, id: x._id, email: x.Title || '', time: String(x.ReportTime || '09:00').slice(0, 5), stations: !x.Stations || x.Stations === 'all' ? 'all' : String(x.Stations).split(',').filter(Boolean), active: x.Active !== false, order: x.SortOrder || 0 })).sort((a, b) => a.order - b.order);
   S.responses = async (from, to) => {
-    const f = []; if (from) f.push(`fields/Ts ge ${Math.floor(from)}`); if (to) f.push(`fields/Ts lt ${Math.floor(to)}`);
-    return (await items('responses', f.join(' and '))).map(x => ({ ts: x.Ts, date: x.Day, time: x.Clock, station: x.StationId, food: x.Food || null, service: x.Service || null, variety: x.Variety || null, clean: x.Clean || null,
-      expect: x.Expect || '', enjoyed: x.Enjoyed || '', improve: x.Improve || '', comments: x.Comments || '', lang: x.Lang || '' }));
+    // filtered here, not in the Graph query: a column filter can silently return nothing on some lists
+    const p = n => String(n).padStart(2, '0');
+    return (await items('responses')).map(x => {
+      let ts = Number(x.Ts);
+      if (!ts) ts = Date.parse(x._created) || 0;
+      const d = new Date(ts);
+      return { ts, date: x.Day || (d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())), time: x.Clock || (p(d.getHours()) + ':' + p(d.getMinutes())), station: x.StationId, food: Number(x.Food) || null, service: Number(x.Service) || null, variety: Number(x.Variety) || null, clean: Number(x.Clean) || null,
+      expect: x.Expect || '', enjoyed: x.Enjoyed || '', improve: x.Improve || '', comments: x.Comments || '', lang: x.Lang || '' };
+    }).filter(r => (!from || r.ts >= from) && (!to || r.ts < to));
   };
 
   /* ---------- writes ---------- */
