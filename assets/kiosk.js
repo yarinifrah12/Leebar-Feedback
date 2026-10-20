@@ -21,7 +21,7 @@
   const STEPS = ['r0', 'r1', 'r2', 'r3', 'expect', 'text', 'more'];
   let lang = lsGet('lb_lang', 'en');
   let session = lsGet('lb_kiosk', null);          // {station:{id,name,partnerLogo,partnerName}}
-  let signedIn = null;
+  let signedIn = null, loadErr = null;
   let stations = lsGet('lb_stations_cache', []);
   let outbox = lsGet('lb_outbox', []);
   let step = 'start', ans = {}, idleT = null, thanksT = null;
@@ -50,7 +50,8 @@
       lsSet('lb_stations_cache', stations);
       // keep the bound station's details fresh (name, partner logo)
       if (session) { const fresh = stations.find(s => s.id === session.station.id); if (fresh) { session.station = fresh; lsSet('lb_kiosk', session); } }
-    } catch (e) {}
+      loadErr = null;
+    } catch (e) { console.error(e); loadErr = e; }
     paintStation();
     if (step === 'start' || step === 'login') render();
   }
@@ -101,6 +102,17 @@
     $('kProg').innerHTML = STEPS.map((_, i) => `<i class="${idx >= 0 && i <= idx || step === 'thanks' ? 'on' : ''}"></i>`).join('');
     $('kProg').style.visibility = step === 'start' || step === 'login' ? 'hidden' : 'visible';
 
+    if (step === 'login' && !stations.length) {
+      const who = esc(S.email ? S.email() : '');
+      const why = !loadErr ? 'טוען תחנות…'
+        : loadErr.code === 'missing_list' ? 'רשימות המשוב עוד לא הוקמו ב-SharePoint. יש להיכנס לדשבורד וללחוץ "הקמת הרשימות".'
+        : (loadErr.status === 401 || loadErr.status === 403 || /access|denied|forbidden/i.test(loadErr.message || '')) ? `לחשבון <b dir="ltr">${who}</b> אין הרשאה לאתר SharePoint של לי-בר. צריך לבקש מ-IT לתת לחשבון הזה הרשאת קריאה לאתר leebar.`
+        : (loadErr.status === 404) ? 'האתר leebar לא נמצא ב-SharePoint. בדקי את config.js.'
+        : `לא הצלחתי לטעון את התחנות (${esc(loadErr.message || 'שגיאה')}).`;
+      m.innerHTML = `<h1>${t.login}</h1><p class="k-sub">${why}</p>${loadErr ? `<div class="k-actions"><button class="primary" id="rtry">נסה שוב</button><button class="ghost" id="swUser">התחברות עם משתמש אחר</button></div><p class="k-sub" style="font-size:13px" dir="ltr">${who}</p>` : ''}`;
+      if (loadErr) { $('rtry').onclick = () => { loadErr = null; render(); loadStations(); }; $('swUser').onclick = () => S.logout(); }
+      return;
+    }
     if (step === 'login') {
       const pre = linkStation || (session && session.station.id);
       m.innerHTML = `<h1>${t.login}</h1><p class="k-sub">${t.loginSub}</p>
