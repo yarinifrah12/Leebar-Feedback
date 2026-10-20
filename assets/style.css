@@ -243,3 +243,7 @@ html.kiosk-page textarea, html.kiosk-page input{-webkit-user-select:text;user-se
   .texts label,.texts textarea{font-size:clamp(17px,2.8vw,24px)}
   .texts textarea{min-height:clamp(90px,12vh,160px)}
 }
+
+.link-box{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:4px 12px 10px}
+.link-box .inp{flex:1;min-width:240px;width:auto;font-size:13px}
+.link-box .lb-msg{color:var(--r5);font-weight:600;font-size:13px}

@@ -273,7 +273,18 @@
       <div class="row"><input class="inp wide" id="admins" dir="ltr" style="min-width:min(520px,100%)" value="${esc((data.admins || []).join(', '))}"><button class="btn acc" id="saveAdmins">שמירה</button></div>
       <div class="row"><span>קישור דשבורד אדמין (כל התחנות):</span><button class="btn" data-copy="${esc(dashLink())}">העתקת קישור אדמין</button></div>
       <div class="d-meta">כל מנהל נכנס עם חשבון ה-Microsoft שלו. מנהל תחנה רואה רק את התחנות שבהן המייל שלו מופיע. קוד הטאבלט (2 האותיות הראשונות של שם התחנה) רק מחבר טאבלט לתחנה.</div>`;
-    box.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => { const t = b.dataset.copy; try { await navigator.clipboard.writeText(t); toast('הקישור הועתק'); } catch (e) { prompt('העתיקי את הקישור:', t); } });
+    box.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => {
+      const t = b.dataset.copy, row = b.closest('.st-row, .row') || b.parentElement;
+      // show the link on the page, so it can be seen and copied by hand too
+      let shown = row.nextElementSibling && row.nextElementSibling.classList.contains('link-box') ? row.nextElementSibling : null;
+      if (!shown) { shown = document.createElement('div'); shown.className = 'link-box'; row.after(shown); }
+      shown.innerHTML = `<input class="inp" readonly dir="ltr" value="${esc(t)}" aria-label="קישור"><span class="lb-msg"></span>`;
+      const inp = shown.querySelector('input'), msg = shown.querySelector('.lb-msg');
+      inp.focus(); inp.select();
+      let ok = false;
+      try { await navigator.clipboard.writeText(t); ok = true; } catch (e) { try { ok = document.execCommand('copy'); } catch (x) {} }
+      msg.textContent = ok ? '✓ הקישור הועתק' : 'סמני והעתיקי (Ctrl+C)';
+      toast(ok ? 'הקישור הועתק' : 'סמני את הקישור והעתיקי'); });
     box.querySelectorAll('[data-savemgr]').forEach(b => b.onclick = () => {
       const id = b.dataset.savemgr, l = parseEmails(box.querySelector(`[data-mgr="${id}"]`).value);
       if (!l) { toast('אחת הכתובות לא תקינה'); return; }
