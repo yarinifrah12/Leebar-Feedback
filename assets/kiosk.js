@@ -6,19 +6,19 @@
   const stCode = n => String(n || '').replace(/[^\p{L}]/gu, '').slice(0, 2).toLowerCase();
   const T = {
     en: { welcome: "We'd love to hear about your experience!", welcomeSub: 'Your feedback is anonymous and helps us keep the highest standards of food and service.', start: 'Start',
-      step: (i, n) => `Question ${i} of ${n}`, expectQ: 'Did the meal meet your expectations?', textQ: 'Anything you would like to tell us?', textSub: 'Optional. Skip if you are in a hurry.',
+      step: (i, n) => `Question ${i} of ${n}`, expectQ: 'Did the meal meet your expectations?', textQ: 'Anything you would like to tell us?', textSub: 'Optional. Skip if you are in a hurry.', next: 'Next', skipNext: 'Skip', moreQ: 'Any additional comments?', skipSend: 'Skip and submit',
       enjoyed: 'What did you enjoy most about your meal today?', improve: 'What can we improve?', comments: 'Additional comments', submit: 'Submit', back: 'Back',
       thanks: 'Thank you!', thanksSub: 'Your feedback helps us improve our food, service and overall dining experience.', backIn: (n) => `Back to the start in ${n}… tap anywhere to start now`, anon: 'Anonymous', offline: 'Saved on this tablet, will sync',
       station: 'Station: ', login: 'Station login', loginSub: "Choose this tablet's station and enter the station code. Needed once per tablet.", stLabel: 'Station', code: 'Code', loginBtn: 'Log in', wrong: 'Wrong code', noNet: 'No connection. Check the internet and try again.',
       signin: 'Connect this tablet', signinSub: 'Sign in once with the Li-Bar tablet account. Diners never need to sign in.', signinBtn: 'Sign in with Microsoft' },
     he: { welcome: 'נשמח לשמוע איך היה!', welcomeSub: 'המשוב אנונימי לחלוטין ועוזר לנו לשמור על רמה גבוהה של אוכל ושירות.', start: 'התחלה',
-      step: (i, n) => `שאלה ${i} מתוך ${n}`, expectQ: 'האם הארוחה עמדה בציפיות שלך?', textQ: 'רוצה להוסיף משהו?', textSub: 'לא חובה. אפשר לדלג.',
+      step: (i, n) => `שאלה ${i} מתוך ${n}`, expectQ: 'האם הארוחה עמדה בציפיות שלך?', textQ: 'רוצה להוסיף משהו?', textSub: 'לא חובה. אפשר לדלג.', next: 'המשך', skipNext: 'דלג', moreQ: 'הערות נוספות?', skipSend: 'דלג ושלח',
       enjoyed: 'מה הכי אהבת בארוחה היום?', improve: 'מה אפשר לשפר?', comments: 'הערות נוספות', submit: 'שליחה', back: 'חזרה',
       thanks: 'תודה רבה!', thanksSub: 'המשוב שלך עוזר לנו לשפר את האוכל, השירות וחוויית הארוחה.', backIn: (n) => `חוזרים למסך הפתיחה בעוד ${n}… אפשר לגעת במסך כדי להתחיל מיד`, anon: 'אנונימי', offline: 'נשמר בטאבלט, יסונכרן',
       station: 'תחנה: ', login: 'התחברות תחנה', loginSub: 'בחרי את התחנה של הטאבלט והזיני את קוד התחנה. פעם אחת בלבד לכל טאבלט.', stLabel: 'תחנה', code: 'קוד', loginBtn: 'התחברות', wrong: 'קוד שגוי', noNet: 'אין חיבור לאינטרנט. בדקי את החיבור ונסי שוב.',
       signin: 'חיבור הטאבלט', signinSub: 'התחברות חד-פעמית עם חשבון הטאבלט של לי-בר. הסועדים לא צריכים להתחבר.', signinBtn: 'התחברות עם Microsoft' }
   };
-  const STEPS = ['r0', 'r1', 'r2', 'r3', 'expect', 'text'];
+  const STEPS = ['r0', 'r1', 'r2', 'r3', 'expect', 'text', 'more'];
   let lang = lsGet('lb_lang', 'en');
   let session = lsGet('lb_kiosk', null);          // {station:{id,name,partnerLogo,partnerName}}
   let signedIn = null;
@@ -147,13 +147,22 @@
         <div class="texts">
           <label for="tEnj">${t.enjoyed}<textarea id="tEnj" maxlength="600">${esc(ans.enjoyed || '')}</textarea></label>
           <label for="tImp">${t.improve}<textarea id="tImp" maxlength="600">${esc(ans.improve || '')}</textarea></label>
-          <label for="tCom">${t.comments}<textarea id="tCom" maxlength="600">${esc(ans.comments || '')}</textarea></label>
         </div>
-        <div class="k-actions"><button class="primary" id="sub">${t.submit}</button><button class="ghost" id="bk">${t.back}</button></div>`;
-      const grab = () => { ans.enjoyed = $('tEnj').value.trim(); ans.improve = $('tImp').value.trim(); ans.comments = $('tCom').value.trim(); };
+        <div class="k-actions"><button class="primary" id="nx">${t.next}</button><button class="ghost" id="sk">${t.skipNext}</button><button class="ghost" id="bk">${t.back}</button></div>`;
+      const grab = () => { ans.enjoyed = $('tEnj').value.trim(); ans.improve = $('tImp').value.trim(); };
       m.querySelectorAll('textarea').forEach(x => x.oninput = armIdle);
-      $('sub').onclick = () => { grab(); submit(); };
+      $('nx').onclick = () => { grab(); go('more'); };
+      $('sk').onclick = () => { grab(); go('more'); };
       $('bk').onclick = () => { grab(); go('expect'); };
+    } else if (step === 'more') {
+      m.innerHTML = `<div class="k-step">${t.step(7, STEPS.length)}</div><h1>${t.moreQ}</h1><p class="k-sub">${t.textSub}</p>
+        <div class="texts"><label for="tCom" class="sr-only" style="position:absolute;left:-9999px">${t.comments}</label><textarea id="tCom" maxlength="600" style="min-height:140px">${esc(ans.comments || '')}</textarea></div>
+        <div class="k-actions"><button class="primary" id="sub">${t.submit}</button><button class="ghost" id="sk">${t.skipSend}</button><button class="ghost" id="bk">${t.back}</button></div>`;
+      const grab = () => { ans.comments = $('tCom').value.trim(); };
+      $('tCom').oninput = armIdle;
+      $('sub').onclick = () => { grab(); submit(); };
+      $('sk').onclick = () => { ans.comments = ''; submit(); };
+      $('bk').onclick = () => { grab(); go('text'); };
     } else if (step === 'thanks') {
       let left = 4;
       m.innerHTML = `<div class="thanks-mark">${face(5)}</div><h1>${t.thanks}</h1><p class="k-sub">${t.thanksSub}</p><p class="k-sub" id="backIn" style="font-size:15px">${t.backIn(left)}</p>`;
