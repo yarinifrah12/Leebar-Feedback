@@ -187,9 +187,13 @@
     const out = [], has = met.filter(m => m.avg != null);
     if (L.length < 20) out.push({ c: '', t: `יש רק ${L.length} משובים בטווח הזה, כך שהמסקנות עדיין ראשוניות.` });
     if (has.length) {
-      const s = [...has].sort((a, b) => b.avg - a.avg), w = s[s.length - 1];
-      out.push({ c: 'good', t: `החוזקה הבולטת: <b>${s[0].q.short}</b> עם ממוצע ${fmt(s[0].avg)}.` });
-      out.push({ c: w.avg < 3.5 ? 'warn' : '', t: `הנקודה החלשה ביותר: <b>${w.q.short}</b> עם ממוצע ${fmt(w.avg)}${w.avg < 3.5 ? ' — מתחת ליעד 3.5, כדאי לטפל.' : '.'}` });
+      const s = [...has].sort((a, b) => b.avg - a.avg), best = s[0], w = s[s.length - 1];
+      if (best.avg - w.avg < 0.3) {
+        out.push({ c: w.avg >= 4 ? 'good' : w.avg < 3.5 ? 'warn' : '', t: `כל הנושאים קיבלו ציון דומה, סביב ${fmt(best.avg)}${w.avg >= 4 ? '. אין נקודה חלשה בולטת.' : w.avg < 3.5 ? ', מתחת ליעד 3.5.' : '.'}` });
+      } else {
+        out.push({ c: 'good', t: `החוזקה הבולטת: <b>${best.q.short}</b> עם ממוצע ${fmt(best.avg)}.` });
+        out.push({ c: w.avg < 3.5 ? 'warn' : '', t: `${w.avg >= 4 ? 'הנמוך מבין הנושאים (ועדיין טוב)' : 'הנקודה החלשה ביותר'}: <b>${w.q.short}</b> עם ממוצע ${fmt(w.avg)}${w.avg < 3.5 ? ' — מתחת ליעד 3.5, כדאי לטפל.' : '.'}` });
+      }
       has.forEach(m => { if (m.prev != null && Math.abs(m.avg - m.prev) >= 0.3) out.push({ c: m.avg < m.prev ? 'warn' : 'good', t: `<b>${m.q.short}</b> ${m.avg < m.prev ? 'ירד' : 'עלה'} מ-${fmt(m.prev)} ל-${fmt(m.avg)} לעומת התקופה הקודמת.` }); });
       has.forEach(m => { const low = (m.dist[0] + m.dist[1]) / m.n; if (low >= 0.2) out.push({ c: 'warn', t: `${Math.round(low * 100)}% נתנו ל<b>${m.q.short}</b> ציון 1–2.` }); });
     }
