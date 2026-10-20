@@ -112,13 +112,14 @@
   S.responses = async (from, to) => {
     // filtered here, not in the Graph query: a column filter can silently return nothing on some lists
     const p = n => String(n).padStart(2, '0');
+    S.lastTotal = 0;
     return (await items('responses')).map(x => {
       let ts = Number(x.Ts);
       if (!ts) ts = Date.parse(x._created) || 0;
       const d = new Date(ts);
       return { ts, date: x.Day || (d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())), time: x.Clock || (p(d.getHours()) + ':' + p(d.getMinutes())), station: x.StationId, food: Number(x.Food) || null, service: Number(x.Service) || null, variety: Number(x.Variety) || null, clean: Number(x.Clean) || null,
       expect: x.Expect || '', enjoyed: x.Enjoyed || '', improve: x.Improve || '', comments: x.Comments || '', lang: x.Lang || '' };
-    }).filter(r => (!from || r.ts >= from) && (!to || r.ts < to));
+    }).filter(r => { S.lastTotal = (S.lastTotal || 0); return true; }).filter((r, i, all) => { if (i === 0) S.lastTotal = all.length; return (!from || r.ts >= from) && (!to || r.ts < to); });
   };
 
   /* ---------- writes ---------- */

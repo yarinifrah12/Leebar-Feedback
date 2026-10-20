@@ -122,7 +122,7 @@
     if (!sel.hidden) { sel.innerHTML = `<option value="all">כל התחנות</option>` + data.stations.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join(''); sel.value = viewStation; }
     $('dTitle').textContent = viewStation === 'all' ? (data.stations.length > 1 ? 'משוב חדרי האוכל · כל התחנות' : 'משוב חדר האוכל' + (data.stations[0] ? ' · ' + data.stations[0].name : '')) : stName(viewStation);
     const now = new Date();
-    $('dMeta').textContent = `${L.length} משובים בטווח · עודכן ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    $('dMeta').textContent = `${L.length} משובים בטווח · ${S.lastTotal || 0} ב-SharePoint בסך הכל · עודכן ${pad(now.getHours())}:${pad(now.getMinutes())}`;
     if (role === 'all') { drawStAdmin(); drawReports(); }
     const body = $('dBody');
     if (!L.length) {
