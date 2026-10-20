@@ -252,3 +252,6 @@ table.resp{min-width:980px}
 table.resp td.tx{max-width:240px;min-width:140px;color:var(--ink);line-height:1.45}
 table.resp td.tx .nil{color:var(--line)}
 table.resp th:nth-last-child(-n+3){background:var(--soft)}
+
+.texts .name-inp{width:100%;border:2px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font:inherit;font-size:clamp(16px,2.2vmin,20px);padding:12px 14px}
+table.resp th:nth-last-child(-n+4){background:var(--soft)}

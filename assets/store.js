@@ -9,7 +9,7 @@
     responses: { name: 'LBFeedbackResponses', title: 'משובי חדר אוכל', columns: [
       ['StationId', 'text', true], ['StationName', 'text'], ['Ts', 'number', true], ['Day', 'text', true], ['Clock', 'text'],
       ['Food', 'number'], ['Service', 'number'], ['Variety', 'number'], ['Clean', 'number'], ['Expect', 'text'],
-      ['Enjoyed', 'note'], ['Improve', 'note'], ['Comments', 'note'], ['Lang', 'text'], ['Rid', 'text', true]] },
+      ['Enjoyed', 'note'], ['Improve', 'note'], ['Comments', 'note'], ['Lang', 'text'], ['Rid', 'text', true], ['Name', 'text']] },
     stations: { name: 'LBFeedbackStations', title: 'תחנות משוב', columns: [
       ['StationId', 'text', true], ['SortOrder', 'number'], ['Managers', 'note'], ['PartnerLogo', 'text'], ['PartnerName', 'text']] },
     recipients: { name: 'LBFeedbackRecipients', title: 'נמעני דוח משוב', columns: [
@@ -118,7 +118,7 @@
       if (!ts) ts = Date.parse(x._created) || 0;
       const d = new Date(ts);
       return { ts, date: x.Day || (d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())), time: x.Clock || (p(d.getHours()) + ':' + p(d.getMinutes())), station: x.StationId, food: Number(x.Food) || null, service: Number(x.Service) || null, variety: Number(x.Variety) || null, clean: Number(x.Clean) || null,
-      expect: x.Expect || '', enjoyed: x.Enjoyed || '', improve: x.Improve || '', comments: x.Comments || '', lang: x.Lang || '' };
+      expect: x.Expect || '', enjoyed: x.Enjoyed || '', improve: x.Improve || '', comments: x.Comments || '', name: x.Name || '', lang: x.Lang || '' };
     }).filter(r => { S.lastTotal = (S.lastTotal || 0); return true; }).filter((r, i, all) => { if (i === 0) S.lastTotal = all.length; return (!from || r.ts >= from) && (!to || r.ts < to); });
   };
 
@@ -130,7 +130,23 @@
     const fields = { Title: station.name, StationId: station.id, StationName: station.name, Ts: r.ts, Day: d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()), Clock: p(d.getHours()) + ':' + p(d.getMinutes()),
       Expect: r.expect || '', Enjoyed: clip(r.enjoyed), Improve: clip(r.improve), Comments: clip(r.comments), Lang: r.lang, Rid: r.id };
     ['food', 'service', 'variety', 'clean'].forEach(k => { const v = score(r[k]); if (v != null) fields[k[0].toUpperCase() + k.slice(1)] = v; });
-    return create('responses', fields);
+    const name = String(r.name || '').trim().slice(0, 60);
+    if (!name) return create('responses', fields);
+    try { return await create('responses', Object.assign({ Name: name }, fields)); }
+    catch (e) {
+      // the Name column is added the first time an admin opens the dashboard; until then keep the name in the comments
+      if (e.status !== 400) throw e;
+      fields.Comments = clip(('שם: ' + name + (fields.Comments ? ' · ' + fields.Comments : '')));
+      return create('responses', fields);
+    }
+  };
+  /* adds columns introduced after the lists were created (admin only, needs list-manage rights) */
+  S.ensureColumns = async () => {
+    const ids = await lists(); if (!ids.responses) return;
+    const sid = await site();
+    const cols = await g(`/sites/${sid}/lists/${ids.responses}/columns?$select=name&$top=500`);
+    const have = new Set((cols.value || []).map(c => c.name));
+    if (!have.has('Name')) await g(`/sites/${sid}/lists/${ids.responses}/columns`, { method: 'POST', scopes: SETUP_SCOPES, body: { name: 'Name', text: {} } });
   };
   S.addStation = (name, managers, order) => create('stations', { Title: name, StationId: 'st' + Date.now().toString(36), SortOrder: order, Managers: managers.join(', '), PartnerLogo: '', PartnerName: '' });
   S.updateStation = (id, f) => patch('stations', id, f);

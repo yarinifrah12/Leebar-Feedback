@@ -55,6 +55,7 @@
     catch (e) { console.error(e); gateMsg('אין הרשאה', 'לחשבון ' + esc(S.email()) + ' אין הרשאה לרשימות המשוב. בקשי ממנהל המערכת.'); return; }
     if (!role) { gateMsg('אין הרשאה לדשבורד', 'החשבון ' + esc(S.email()) + ' לא מוגדר כמנהל ראשי או כמנהל תחנה. המנהלת הראשית יכולה להוסיף אותך בהגדרות.'); return; }
     openDash();
+    if (role === 'all') S.ensureColumns().catch(e => console.warn('ensureColumns', e));
   }
 
   function openDash() {
@@ -173,13 +174,13 @@
     const rows = L.slice(0, 500).map(r => {
       const d = new Date(r.ts); let pre = '';
       if (r.date !== lastDay) { lastDay = r.date; const cnt = L.filter(x => x.date === r.date).length;
-        pre = `<tr class="day-row"><td colspan="${showSt ? 10 : 9}">${d.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })} · ${cnt} משובים</td></tr>`; }
+        pre = `<tr class="day-row"><td colspan="${showSt ? 11 : 10}">${d.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })} · ${cnt} משובים</td></tr>`; }
       const sc = k => r[k] ? `<i style="background:var(--r${r[k]})">${r[k]}</i>` : '–';
       const tx = v => `<td class="tx">${v ? esc(v) : '<span class="nil">–</span>'}</td>`;
-      return pre + `<tr>${showSt ? `<td class="st-cell">${esc(stName(r.station))}</td>` : ''}<td class="dt">${String(r.date).split('-').reverse().join('.')} ${esc(r.time)}</td><td class="sc">${sc('food')}</td><td class="sc">${sc('service')}</td><td class="sc">${sc('variety')}</td><td class="sc">${sc('clean')}</td><td>${r.expect ? (EXPECT.find(e => e.k === r.expect)?.he || '') : '–'}</td>${tx(r.enjoyed)}${tx(r.improve)}${tx(r.comments)}</tr>`;
+      return pre + `<tr>${showSt ? `<td class="st-cell">${esc(stName(r.station))}</td>` : ''}<td class="dt">${String(r.date).split('-').reverse().join('.')} ${esc(r.time)}</td><td class="sc">${sc('food')}</td><td class="sc">${sc('service')}</td><td class="sc">${sc('variety')}</td><td class="sc">${sc('clean')}</td><td>${r.expect ? (EXPECT.find(e => e.k === r.expect)?.he || '') : '–'}</td>${tx(r.enjoyed)}${tx(r.improve)}${tx(r.comments)}${tx(r.name)}</tr>`;
     }).join('');
     h += `<section class="panel"><h2>כל המשובים לפי תאריך (${L.length})</h2>
-      <div class="tbl-wrap"><table class="resp"><thead><tr>${showSt ? '<th>תחנה</th>' : ''}<th>תאריך ושעה</th><th>אוכל</th><th>שירות</th><th>מגוון</th><th>ניקיון</th><th>ציפיות</th><th>מה אהבו</th><th>מה לשפר</th><th>הערות נוספות</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="tbl-wrap"><table class="resp"><thead><tr>${showSt ? '<th>תחנה</th>' : ''}<th>תאריך ושעה</th><th>אוכל</th><th>שירות</th><th>מגוון</th><th>ניקיון</th><th>ציפיות</th><th>מה אהבו</th><th>מה לשפר</th><th>הערות נוספות</th><th>שם</th></tr></thead><tbody>${rows}</tbody></table></div>
       ${L.length > 500 ? '<div class="d-meta">מוצגים 500 האחרונים. לרשימה המלאה ייצאי ל-CSV.</div>' : ''}</section>`;
     body.innerHTML = h;
     body.querySelectorAll('tr.click').forEach(tr => tr.onclick = () => { viewStation = tr.dataset.st; draw(); scrollTo(0, 0); });
@@ -240,8 +241,8 @@
     const L = (viewStation === 'all' ? data.responses : data.responses.filter(r => r.station === viewStation)).filter(r => r.ts >= b[0] && r.ts < b[1]);
     if (!L.length) { toast('אין נתונים לייצוא'); return; }
     const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const head = ['תחנה', 'תאריך', 'שעה', 'אוכל', 'שירות', 'מגוון', 'ניקיון', 'ציפיות', 'מה אהבו', 'מה לשפר', 'הערות', 'שפה'];
-    const rows = L.map(r => [stName(r.station), r.date, r.time, r.food, r.service, r.variety, r.clean, EXPECT.find(e => e.k === r.expect)?.he || '', r.enjoyed, r.improve, r.comments, r.lang].map(q).join(','));
+    const head = ['תחנה', 'תאריך', 'שעה', 'אוכל', 'שירות', 'מגוון', 'ניקיון', 'ציפיות', 'מה אהבו', 'מה לשפר', 'הערות', 'שם', 'שפה'];
+    const rows = L.map(r => [stName(r.station), r.date, r.time, r.food, r.service, r.variety, r.clean, EXPECT.find(e => e.k === r.expect)?.he || '', r.enjoyed, r.improve, r.comments, r.name, r.lang].map(q).join(','));
     const blob = new Blob(['﻿' + head.map(q).join(',') + '\n' + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `leebar-feedback-${dayKey(Date.now())}.csv`;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
