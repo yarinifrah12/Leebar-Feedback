@@ -21,7 +21,7 @@
   const STEPS = ['r0', 'r1', 'r2', 'r3', 'expect', 'text', 'more'];
   let lang = lsGet('lb_lang', 'en');
   let session = lsGet('lb_kiosk', null);          // {station:{id,name,partnerLogo,partnerName}}
-  let signedIn = null, loadErr = null;
+  let signedIn = null, loadErr = null, saveErr = null;
   let stations = lsGet('lb_stations_cache', []);
   let outbox = lsGet('lb_outbox', []);
   let step = 'start', ans = {}, idleT = null, thanksT = null;
@@ -42,8 +42,24 @@
   function setStatus() {
     const off = outbox.length > 0;
     $('kStatus').classList.toggle('off', off);
-    $('kStatusTxt').textContent = demo ? (lang === 'he' ? 'מצב תצוגה – לא נשמר' : 'Preview – not saved') : off ? T[lang].offline : T[lang].anon;
+    $('kStatusTxt').textContent = demo ? (lang === 'he' ? 'מצב תצוגה – לא נשמר' : 'Preview – not saved') : off ? `${outbox.length} ${lang === 'he' ? 'משובים ממתינים – לחצי לפרטים' : 'waiting – tap for details'}` : T[lang].anon;
   }
+  // tap the status when responses are waiting: shows why saving failed and tries again now
+  $('kStatus').addEventListener('click', async () => {
+    if (!outbox.length || demo) return;
+    const who = S.email ? S.email() : '';
+    const e = saveErr || {};
+    const why = e.status === 403 || e.status === 401 || /denied|forbidden|access/i.test(e.message || '')
+      ? `לחשבון ${who} אין הרשאת כתיבה לרשימה LBFeedbackResponses. צריך לתת לו הרשאת "תרומה" (Contribute) ברשימה הזו.`
+      : e.status === 404 ? 'רשימת המשובים לא נמצאה ב-SharePoint.'
+      : !navigator.onLine ? 'אין חיבור לאינטרנט.'
+      : `שגיאה בשמירה: ${e.message || 'לא ידועה'}${e.status ? ' (' + e.status + ')' : ''}`;
+    $('kMain').innerHTML = `<h1>${outbox.length} משובים ממתינים בטאבלט</h1><p class="k-sub">${esc(why)}</p><p class="k-sub" dir="ltr" style="font-size:13px">${esc(who)}</p>
+      <div class="k-actions"><button class="primary" id="syncNow">נסה לשלוח עכשיו</button><button class="ghost" id="syncBack">חזרה לסקר</button></div>`;
+    $('syncNow').onclick = async () => { $('syncNow').disabled = true; await flushOutbox(); if (!outbox.length) { toastOk(); reset(); } else { $('kStatus').click(); } };
+    $('syncBack').onclick = () => reset();
+  });
+  function toastOk() { const t = $('toast'); if (t) { t.textContent = 'כל המשובים נשלחו'; t.hidden = false; setTimeout(() => t.hidden = true, 2500); } }
   async function loadStations() {
     try {
       const timeout = new Promise((_, rej) => setTimeout(() => { const e = new Error('timeout'); e.code = 'timeout'; rej(e); }, 20000));
@@ -64,7 +80,7 @@
     for (const rec of outbox) {
       try {
         await S.submit(session.station, rec);
-      } catch (e) { rest.push(rec); }
+      } catch (e) { rest.push(rec); saveErr = e; }
     }
     outbox = rest; lsSet('lb_outbox', outbox); setStatus();
   }
@@ -201,8 +217,9 @@
     go('thanks');
     try {
       await S.submit(session.station, rec);
+      saveErr = null;
       return;
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); saveErr = e; }
     outbox.push(rec); lsSet('lb_outbox', outbox); setStatus();
   }
 
