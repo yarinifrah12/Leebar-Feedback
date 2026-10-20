@@ -247,3 +247,8 @@ html.kiosk-page textarea, html.kiosk-page input{-webkit-user-select:text;user-se
 .link-box{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:4px 12px 10px}
 .link-box .inp{flex:1;min-width:240px;width:auto;font-size:13px}
 .link-box .lb-msg{color:var(--r5);font-weight:600;font-size:13px}
+
+table.resp{min-width:980px}
+table.resp td.tx{max-width:240px;min-width:140px;color:var(--ink);line-height:1.45}
+table.resp td.tx .nil{color:var(--line)}
+table.resp th:nth-last-child(-n+3){background:var(--soft)}

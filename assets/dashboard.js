@@ -173,13 +173,13 @@
     const rows = L.slice(0, 500).map(r => {
       const d = new Date(r.ts); let pre = '';
       if (r.date !== lastDay) { lastDay = r.date; const cnt = L.filter(x => x.date === r.date).length;
-        pre = `<tr class="day-row"><td colspan="${showSt ? 8 : 7}">${d.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })} · ${cnt} משובים</td></tr>`; }
+        pre = `<tr class="day-row"><td colspan="${showSt ? 10 : 9}">${d.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })} · ${cnt} משובים</td></tr>`; }
       const sc = k => r[k] ? `<i style="background:var(--r${r[k]})">${r[k]}</i>` : '–';
-      const tx = [r.enjoyed, r.improve, r.comments].filter(Boolean).map(esc).join(' · ');
-      return pre + `<tr>${showSt ? `<td class="st-cell">${esc(stName(r.station))}</td>` : ''}<td class="dt">${String(r.date).split('-').reverse().join('.')} ${esc(r.time)}</td><td class="sc">${sc('food')}</td><td class="sc">${sc('service')}</td><td class="sc">${sc('variety')}</td><td class="sc">${sc('clean')}</td><td>${r.expect ? (EXPECT.find(e => e.k === r.expect)?.he || '') : '–'}</td><td class="tx">${tx}</td></tr>`;
+      const tx = v => `<td class="tx">${v ? esc(v) : '<span class="nil">–</span>'}</td>`;
+      return pre + `<tr>${showSt ? `<td class="st-cell">${esc(stName(r.station))}</td>` : ''}<td class="dt">${String(r.date).split('-').reverse().join('.')} ${esc(r.time)}</td><td class="sc">${sc('food')}</td><td class="sc">${sc('service')}</td><td class="sc">${sc('variety')}</td><td class="sc">${sc('clean')}</td><td>${r.expect ? (EXPECT.find(e => e.k === r.expect)?.he || '') : '–'}</td>${tx(r.enjoyed)}${tx(r.improve)}${tx(r.comments)}</tr>`;
     }).join('');
     h += `<section class="panel"><h2>כל המשובים לפי תאריך (${L.length})</h2>
-      <div class="tbl-wrap"><table class="resp"><thead><tr>${showSt ? '<th>תחנה</th>' : ''}<th>תאריך ושעה</th><th>אוכל</th><th>שירות</th><th>מגוון</th><th>ניקיון</th><th>ציפיות</th><th>תגובה</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="tbl-wrap"><table class="resp"><thead><tr>${showSt ? '<th>תחנה</th>' : ''}<th>תאריך ושעה</th><th>אוכל</th><th>שירות</th><th>מגוון</th><th>ניקיון</th><th>ציפיות</th><th>מה אהבו</th><th>מה לשפר</th><th>הערות נוספות</th></tr></thead><tbody>${rows}</tbody></table></div>
       ${L.length > 500 ? '<div class="d-meta">מוצגים 500 האחרונים. לרשימה המלאה ייצאי ל-CSV.</div>' : ''}</section>`;
     body.innerHTML = h;
     body.querySelectorAll('tr.click').forEach(tr => tr.onclick = () => { viewStation = tr.dataset.st; draw(); scrollTo(0, 0); });
