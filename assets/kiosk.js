@@ -211,6 +211,15 @@
   $('kStation').addEventListener('pointerdown', () => { holdT = setTimeout(() => { lsDel('lb_kiosk'); session = null; paintStation(); reset(); }, 3000); });
   ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => $('kStation').addEventListener(ev, () => clearTimeout(holdT)));
 
+  /* full screen: the browser only allows it from a tap, so every tap re-enters it if it was left */
+  const standalone = () => matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone;
+  function goFull() {
+    if (standalone() || document.fullscreenElement || document.webkitFullscreenElement) return;
+    const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) try { const p = req.call(el, { navigationUI: 'hide' }); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+  }
+  document.addEventListener('pointerup', e => { if (!e.target.closest('textarea,input,select')) goFull(); }, { passive: true });
+
   /* keep the screen on */
   async function wake() { try { if (navigator.wakeLock && document.visibilityState === 'visible') await navigator.wakeLock.request('screen'); } catch (e) {} }
   document.addEventListener('visibilitychange', wake); wake();
