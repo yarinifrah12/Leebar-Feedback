@@ -46,7 +46,10 @@
   }
   async function loadStations() {
     try {
-      stations = (await S.stations()).map(x => ({ id: x.id, name: x.name, partnerLogo: x.partnerLogo, partnerName: x.partnerName }));
+      const timeout = new Promise((_, rej) => setTimeout(() => { const e = new Error('timeout'); e.code = 'timeout'; rej(e); }, 20000));
+      const list = await Promise.race([S.stations(), timeout]);
+      if (!list.length) { const e = new Error('empty'); e.code = 'empty'; throw e; }
+      stations = list.map(x => ({ id: x.id, name: x.name, partnerLogo: x.partnerLogo, partnerName: x.partnerName }));
       lsSet('lb_stations_cache', stations);
       // keep the bound station's details fresh (name, partner logo)
       if (session) { const fresh = stations.find(s => s.id === session.station.id); if (fresh) { session.station = fresh; lsSet('lb_kiosk', session); } }
@@ -105,6 +108,8 @@
     if (step === 'login' && !stations.length) {
       const who = esc(S.email ? S.email() : '');
       const why = !loadErr ? 'טוען תחנות…'
+        : loadErr.code === 'empty' ? `החשבון <b dir="ltr">${who}</b> מחובר, אבל לא רואה אף תחנה ברשימה. צריך לתת לחשבון הזה הרשאת קריאה (Read) לרשימה LBFeedbackStations ב-SharePoint, או להתחבר עם חשבון אחר.`
+        : loadErr.code === 'timeout' ? 'הטעינה לוקחת יותר מדי זמן. בדקי את החיבור לאינטרנט ונסי שוב.'
         : loadErr.code === 'missing_list' ? 'רשימות המשוב עוד לא הוקמו ב-SharePoint. יש להיכנס לדשבורד וללחוץ "הקמת הרשימות".'
         : (loadErr.status === 401 || loadErr.status === 403 || /access|denied|forbidden/i.test(loadErr.message || '')) ? `לחשבון <b dir="ltr">${who}</b> אין הרשאה לאתר SharePoint של לי-בר. צריך לבקש מ-IT לתת לחשבון הזה הרשאת קריאה לאתר leebar.`
         : (loadErr.status === 404) ? 'האתר leebar לא נמצא ב-SharePoint. בדקי את config.js.'
