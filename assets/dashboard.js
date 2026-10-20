@@ -60,7 +60,9 @@
   function openDash() {
     $('pinGate').hidden = true; $('dash').hidden = false;
     $('whoami').textContent = S.email();
-    viewStation = role === 'all' ? 'all' : (role.length === 1 ? role[0] : 'all');
+    const want = new URLSearchParams(location.search).get('station');
+    const allowed = id => role === 'all' ? data.stations.some(x => x.id === id) : role.includes(id);
+    viewStation = want && allowed(want) ? want : role === 'all' ? 'all' : (role.length === 1 ? role[0] : 'all');
     $('setupPanel').hidden = $('rpPanel').hidden = role !== 'all';
     draw();
     clearInterval(pollT); pollT = setInterval(() => { if (document.visibilityState === 'visible') load(true).catch(() => {}); }, 60000);
@@ -263,12 +265,13 @@
         <span class="tag">קוד טאבלט: ${esc(stCode(x.name))}</span>
         <input class="inp wide" type="text" dir="ltr" placeholder="מיילים של מנהלי התחנה, מופרדים בפסיק" value="${esc(x.managers.join(', '))}" data-mgr="${esc(x._id)}" aria-label="מנהלי ${esc(x.name)}">
         <button class="btn" data-savemgr="${esc(x._id)}">שמירה</button>
-        <button class="btn" data-copy="${esc(tabletLink(x.id))}">העתקת קישור לטאבלט</button></div>`).join('')}</div>
+        <button class="btn" data-copy="${esc(tabletLink(x.id))}">קישור לטאבלט</button>
+        <button class="btn" data-copy="${esc(dashLink() + '?station=' + encodeURIComponent(x.id))}">קישור דשבורד לתחנה</button></div>`).join('')}</div>
       <div class="row"><input class="inp wide" id="newStName" placeholder="שם תחנה חדשה"><input class="inp wide" id="newStMgr" dir="ltr" placeholder="מייל מנהל התחנה (לא חובה)">
         <button class="btn acc" id="addSt">הוספת תחנה</button></div>
       <h3 style="font-size:17px;margin:8px 0 0">מנהלים ראשיים (רואים את כל התחנות)</h3>
       <div class="row"><input class="inp wide" id="admins" dir="ltr" style="min-width:min(520px,100%)" value="${esc((data.admins || []).join(', '))}"><button class="btn acc" id="saveAdmins">שמירה</button></div>
-      <div class="row"><span>קישור הדשבורד למנכ"ל ולמנהלים:</span><button class="btn" data-copy="${esc(dashLink())}">העתקת קישור דשבורד</button></div>
+      <div class="row"><span>קישור דשבורד אדמין (כל התחנות):</span><button class="btn" data-copy="${esc(dashLink())}">העתקת קישור אדמין</button></div>
       <div class="d-meta">כל מנהל נכנס עם חשבון ה-Microsoft שלו. מנהל תחנה רואה רק את התחנות שבהן המייל שלו מופיע. קוד הטאבלט (2 האותיות הראשונות של שם התחנה) רק מחבר טאבלט לתחנה.</div>`;
     box.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => { const t = b.dataset.copy; try { await navigator.clipboard.writeText(t); toast('הקישור הועתק'); } catch (e) { prompt('העתיקי את הקישור:', t); } });
     box.querySelectorAll('[data-savemgr]').forEach(b => b.onclick = () => {
