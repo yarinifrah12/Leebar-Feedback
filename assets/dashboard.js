@@ -92,6 +92,9 @@
       const admins = S.splitList(settings.admins && settings.admins.value);
       const mine = stations.filter(x => x.managers.includes(me)).map(x => x.id);
       role = admins.includes(me) ? 'all' : (mine.length ? mine : null);
+      // a station link (?station=…) lets any signed-in Li-Bar user view that one station, read-only
+      const linked = new URLSearchParams(location.search).get('station');
+      if (role !== 'all' && linked && stations.some(x => x.id === linked)) role = Array.from(new Set([...(role || []), linked]));
       if (!role) { loading = false; return; }
       let responses = await S.responses(from || 0, isFinite(to) ? to : 0);
       let visibleStations = stations;
