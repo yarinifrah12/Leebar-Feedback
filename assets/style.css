@@ -255,3 +255,6 @@ table.resp th:nth-last-child(-n+3){background:var(--soft)}
 
 .texts .name-inp{width:100%;border:2px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font:inherit;font-size:clamp(16px,2.2vmin,20px);padding:12px 14px}
 table.resp th:nth-last-child(-n+4){background:var(--soft)}
+
+/* station-specific stacked logo: same tile and height as the partner logo */
+#kiosk .brand .brand-tile img{height:clamp(36px,7vmin,70px);width:auto;max-width:none}

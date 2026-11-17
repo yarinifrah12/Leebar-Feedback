@@ -38,7 +38,11 @@
     const p = $('kPartner');
     p.hidden = !(st && st.partnerLogo);
     p.innerHTML = st && st.partnerLogo ? `<img src="${esc(st.partnerLogo)}" alt="${esc(st.partnerName || '')}">` : '';
+    // per-station LEE BAR logo (Natbag shows the stacked logo in a tile the same size as the partner logo)
+    const own = st && BRAND_BY_STATION[st.id];
+    $('kBrand').innerHTML = own ? `<span class="partner brand-tile"><img src="${own}" alt="LEE BAR"></span>` : window.LB.brandHTML();
   }
+  const BRAND_BY_STATION = { natbag: 'assets/leebar-stacked.png' };
   function setStatus() {
     const off = outbox.length > 0;
     $('kStatus').classList.toggle('off', off);
